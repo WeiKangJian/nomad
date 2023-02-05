@@ -13,6 +13,7 @@ Router.map(function () {
     });
   });
 
+  this.route('generation', function () {});
   this.route('jobs', function () {
     this.route('run');
     this.route('job', { path: '/:job_name' }, function () {

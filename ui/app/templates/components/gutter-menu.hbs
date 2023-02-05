@@ -80,6 +80,15 @@
           </LinkTo>
         </li>
         {{/if}}
+        <li {{keyboard-shortcut menuLevel=true pattern=(array "g" "g") }}>
+          <LinkTo
+            @route="generation"
+            @activeClass="is-active"
+            data-test-gutter-link="generation"
+          >
+            Generate Model Job
+          </LinkTo>
+        </li>
       </ul>
       <p class="menu-label">
         Cluster

@@ -1,0 +1,162 @@
+{{page-title "Generation"}}
+<section class="section">
+  <div class="columns">
+    <div class="column">
+      <label class="value-label">
+        <span>
+          Cluster Module Name (datacenter)
+        </span>
+        <Input
+          @type={{this.inputType}}
+          @value={{@entry.value}}
+          class="input value-input"
+          placeholder="部署集群名称 eg：mmsprwereadworker"
+          data-test-var-value
+        />
+      </label>
+    </div>
+    <div class="column">
+      <label class="value-label">
+        <span>
+          Op Type
+        </span>
+        <Input
+          @type={{this.inputType}}
+          @value={{@entry.value}}
+          class="input value-input"
+          placeholder="模型的op-type 全局唯一，eg：weread.rank.z"
+          data-test-var-value
+        />
+      </label>
+    </div>
+  </div>
+  <div class="columns">
+    <div class="column">
+      <label class="value-label">
+        <span>
+          Model Path
+        </span>
+        <Input
+          @type={{this.inputType}}
+          @value={{@entry.value}}
+          class="input value-input"
+          placeholder="模型文件在cos上的地址 eg：graphflow/models/ime_rec/bert_tokenizer/11.tar.zst"
+          data-test-var-value
+        />
+      </label>
+    </div>
+    <div class="column">
+      <label class="value-label">
+        <span>
+          Model MD5
+        </span>
+        <Input
+          @type={{this.inputType}}
+          @value={{@entry.value}}
+          class="input value-input"
+          placeholder="模型文件MD5"
+          data-test-var-value
+        />
+      </label>
+    </div>
+  </div>
+  <div class="columns">
+    <div class="column">
+      <label class="value-label">
+        <span>
+          Deploy Model Count
+        </span>
+        <Input
+          @type={{this.inputType}}
+          @value={{@entry.value}}
+          class="input value-input"
+          placeholder="模型一共部署的数量"
+          data-test-var-value
+        />
+      </label>
+    </div>
+    <div class="column">
+      <label class="value-label">
+        <span>
+          Prefetch
+        </span>
+        <Input
+          @type={{this.inputType}}
+          @value={{@entry.value}}
+          class="input value-input"
+          placeholder="单个模型进程的Prefetch"
+          data-test-var-value
+        />
+      </label>
+    </div>
+  </div>
+  <div class="columns">
+    <div class="column">
+      <label class="value-label">
+        <span>
+          Model Concurrency
+        </span>
+        <Input
+          @type={{this.inputType}}
+          @value={{@entry.value}}
+          class="input value-input"
+          placeholder="单个模型进程的Concurrency"
+          data-test-var-value
+        />
+      </label>
+    </div>
+    <div class="column">
+      <label class="value-label">
+        <span>
+          Constrain deploy node ip
+        </span>
+        <Input
+          @type={{this.inputType}}
+          @value={{@entry.value}}
+          class="input value-input"
+          placeholder="模型分布在集群的哪些节点上，不设置则默认所有节点 eg: 11.143.173.190,11.176.160.244"
+          data-test-var-value
+        />
+      </label>
+    </div>
+  </div>
+  <div class="columns">
+    <div class="column">
+      <label class="value-label">
+        <span>
+          Samosa logic worker num per model
+        </span>
+        <Input
+          @type={{this.inputType}}
+          @value={{@entry.value}}
+          class="input value-input"
+          placeholder="每个模型进程的logic worker数量"
+          data-test-var-value
+        />
+      </label>
+    </div>
+    <div class="column">
+      <label class="value-label">
+        <span>
+          Extra env variable
+        </span>
+        <Input
+          @type={{this.inputType}}
+          @value={{@entry.value}}
+          class="input value-input"
+          placeholder="模型进程需要的额外环境变量 eg: ENVTESTA=AAA,ENVTESTB=BBB"
+          data-test-var-value
+        />
+      </label>
+    </div>
+  </div>
+    <div style="text-align:center">
+     <LinkTo
+       @route="jobs.run"
+       @query={{hash namespace=this.qpNamespace}}
+       class="button is-primary"
+     >
+       Plan
+     </LinkTo>
+    </div>
+</section>
