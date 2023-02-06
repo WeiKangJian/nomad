@@ -8,7 +8,7 @@
         </span>
         <Input
           @type={{this.inputType}}
-          @value={{@entry.value}}
+          @value={{this.model.name}}
           class="input value-input"
           placeholder="部署集群名称 eg：mmsprwereadworker"
           data-test-var-value
@@ -22,7 +22,7 @@
         </span>
         <Input
           @type={{this.inputType}}
-          @value={{@entry.value}}
+             @value={{this.model.type}}
           class="input value-input"
           placeholder="模型的op-type 全局唯一，eg：weread.rank.z"
           data-test-var-value
@@ -38,7 +38,7 @@
         </span>
         <Input
           @type={{this.inputType}}
-          @value={{@entry.value}}
+          @value={{this.model.path}}
           class="input value-input"
           placeholder="模型文件在cos上的地址 eg：graphflow/models/ime_rec/bert_tokenizer/11.tar.zst"
           data-test-var-value
@@ -52,7 +52,7 @@
         </span>
         <Input
           @type={{this.inputType}}
-          @value={{@entry.value}}
+          @value={{this.model.md5}}
           class="input value-input"
           placeholder="模型文件MD5"
           data-test-var-value
@@ -68,7 +68,7 @@
         </span>
         <Input
           @type={{this.inputType}}
-          @value={{@entry.value}}
+          @value={{this.model.count}}
           class="input value-input"
           placeholder="模型一共部署的数量"
           data-test-var-value
@@ -82,7 +82,7 @@
         </span>
         <Input
           @type={{this.inputType}}
-          @value={{@entry.value}}
+          @value={{this.model.prefetch}}
           class="input value-input"
           placeholder="单个模型进程的Prefetch"
           data-test-var-value
@@ -98,7 +98,7 @@
         </span>
         <Input
           @type={{this.inputType}}
-          @value={{@entry.value}}
+          @value={{this.model.con}}
           class="input value-input"
           placeholder="单个模型进程的Concurrency"
           data-test-var-value
@@ -112,7 +112,7 @@
         </span>
         <Input
           @type={{this.inputType}}
-          @value={{@entry.value}}
+          @value={{this.model.ip}}
           class="input value-input"
           placeholder="模型分布在集群的哪些节点上，不设置则默认所有节点 eg: 11.143.173.190,11.176.160.244"
           data-test-var-value
@@ -128,7 +128,7 @@
         </span>
         <Input
           @type={{this.inputType}}
-          @value={{@entry.value}}
+          @value={{this.model.sam}}
           class="input value-input"
           placeholder="每个模型进程的logic worker数量"
           data-test-var-value
@@ -142,7 +142,7 @@
         </span>
         <Input
           @type={{this.inputType}}
-          @value={{@entry.value}}
+          @value={{this.model.vara}}
           class="input value-input"
           placeholder="模型进程需要的额外环境变量 eg: ENVTESTA=AAA,ENVTESTB=BBB"
           data-test-var-value
@@ -152,8 +152,9 @@
   </div>
     <div style="text-align:center">
      <LinkTo
-       @route="jobs.run"
-       @query={{hash namespace=this.qpNamespace}}
+       @route="jobs.runmodel"
+       {{on "click" this.handleClick}}
+       @query={{hash direction="aaa"}}
        class="button is-primary"
      >
        Plan
