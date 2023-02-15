@@ -3,16 +3,16 @@ import Route from '@ember/routing/route';
 export default class GenerationIndexRoute extends Route {
   model() {
     return {
-      name: '',
-      type: '',
-      path: '',
-      md5: '',
-      count: '',
+      module_name: '',
+      op_type: '',
+      model_path: '',
+      model_md5: '',
+      model_count: '',
       prefetch: '',
-      con: '',
-      ip: '',
-      sam: '',
-      vara: '',
+      model_concurrency: '',
+      deploy_ip: '',
+      samosa_logic_worker_num: '',
+      extra_env: '',
     };
   }
 

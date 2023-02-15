@@ -24,17 +24,28 @@ export default class RanRoute extends Route {
       gVal = JSON.parse(gVal);
     }
     // console.log("gVal = ", gVal)
-    const { name, type, path, md5, count, prefetch, con, ip, sam, vara } = gVal;
+    const {
+      module_name,
+      op_type,
+      model_path,
+      model_md5,
+      model_count,
+      prefetch,
+      model_concurrency,
+      deploy_ip,
+      samosa_logic_worker_num,
+      extra_env,
+    } = gVal;
 
-    let varaArr = vara.split(',');
+    let varaArr = extra_env.split(',');
     let varaStr = varaArr.join('\n              ');
     let constraint = '';
-    if (ip) {
+    if (deploy_ip) {
       constraint = `
         constraint {
           attribute = "\${attr.unique.network.ip-address}"
           operator  = "set_contains_any"
-          value     = "${ip}"
+          value     = "${deploy_ip}"
         }
       `;
     }
@@ -44,8 +55,8 @@ export default class RanRoute extends Route {
       const job = this.store.createRecord('job');
       job.set(
         '_newDefinition',
-        `job "${type}@${name}" {
-       datacenters = ["${name}"]
+        `job "${op_type}@${module_name}" {
+       datacenters = ["${module_name}"]
        type = "service"
        # 更新策略
        update {
@@ -57,9 +68,9 @@ export default class RanRoute extends Route {
          canary = 0
        }
 
-       group "${type}" {
+       group "${op_type}" {
          max_client_disconnect = "2h"
-         count = ${count}
+         count = ${model_count}
          restart {
            attempts = 1
            interval = "30m"
@@ -67,21 +78,21 @@ export default class RanRoute extends Route {
            mode = "fail"
          }
          ${constraint}
-         task "${type}" {
+         task "${op_type}" {
            env {
-             GRAPHFLOW_OP_TYPE    = "\${NOMAD_TASK_NAME}"
-             MODEL_DIR_ID         = "/home/qspace/model/\${NOMAD_TASK_NAME}_\${NOMAD_SHORT_ALLOC_ID}"
+             GRAPHFLOW_OP_TYPE    = "\${NOMAD_GROUP_NAME}"
+             MODEL_DIR_ID         = "/home/qspace/model/\${NOMAD_GROUP_NAME}_\${NOMAD_SHORT_ALLOC_ID}"
              ARTIFACT_SERVER_ADDR = "http://localhost:1087"
 
-             MODEL_COS_PATH          = "${path}"
+             MODEL_COS_PATH          = "${model_path}"
               # 模型构件的MD5
-             MODEL_MD5               = "${md5}"
+             MODEL_MD5               = "${model_md5}"
               # 设置模型的PREFETCH
              GRAPHFLOW_MODEL_N_FETCH = ${prefetch}
               # 设置模型的CONCURRENCY
-             GRAPHFLOW_CONCURRENCY   = ${con}
+             GRAPHFLOW_CONCURRENCY   = ${model_concurrency}
               # 一个模型进程对应的logic worker数量
-             LOGIC_WORKER_PER_DAEMON = ${sam}
+             LOGIC_WORKER_PER_DAEMON = ${samosa_logic_worker_num}
             ${varaStr}
            }
            driver = "raw_exec"
@@ -104,6 +115,37 @@ export default class RanRoute extends Route {
              destination = "local/start.sh"
            }
            kill_timeout = "25s"
+         }
+
+         task "clean" {
+           env {
+             MODEL_DIR_ID         = "/home/qspace/model/\${NOMAD_GROUP_NAME}_\${NOMAD_SHORT_ALLOC_ID}"
+             ARTIFACT_SERVER_ADDR = "http://localhost:1087"
+             MODEL_COS_PATH          = "${model_path}"
+             MODEL_MD5               = "${model_md5}"
+           }
+           lifecycle {
+             hook = "poststop"
+           }
+           driver = "raw_exec"
+           config {
+             command = "/bin/sh"
+             args    = [
+               "-c",
+                "chmod a+x local/clean.sh && exec local/clean.sh"
+             ]
+           }
+
+           template {
+             data        = <<EOF
+      #!/bin/bash
+      curl --request DELETE \${ARTIFACT_SERVER_ADDR}'/artifacts?path='\${MODEL_COS_PATH}'&md5='\${MODEL_MD5} -w '\\n'
+      curl --request POST \${ARTIFACT_SERVER_ADDR}'/artifacts/_prune' -w '\\n'
+      rm -rf \${MODEL_DIR_ID}
+      echo clean done
+      EOF
+             destination = "local/clean.sh"
+           }
          }
        }
       }
