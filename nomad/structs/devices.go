@@ -88,7 +88,7 @@ func (d *DeviceAccounter) AddAllocs(allocs []*Allocation) (collision bool) {
 					if devInst, ok := d.Devices[*devID]; ok {
 						if i, ok := devInst.Instances[instanceID]; ok {
 							// Mark that the device is in use
-							//devInst.Instances[instanceID]++
+							devInst.Instances[instanceID]++
 
 							if i != 0 {
 								collision = true
@@ -123,9 +123,7 @@ func (d *DeviceAccounter) AddReserved(res *AllocatedDeviceResource) (collision b
 		if cur != 0 {
 			collision = true
 		}
-
-		// 当前Nomad不支持GPU上任务的混布，暂时去掉这一行,让GPU卡能被多个任务看到
-		//devInst.Instances[id]++
+		devInst.Instances[id]++
 	}
 
 	return

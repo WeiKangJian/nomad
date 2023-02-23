@@ -112,15 +112,27 @@ func (d *deviceAllocator) AssignDevice(ask *structs.RequestedDevice) (out *struc
 		}
 
 		assigned := uint64(0)
-		for id, v := range devInst.Instances {
-			if v == 0 && assigned < ask.Count {
-				assigned++
-				offer.DeviceIDs = append(offer.DeviceIDs, id)
-				if assigned == ask.Count {
-					break
+		for ; assigned < ask.Count; assigned++ {
+			curValue := int(^uint(0) >> 1)
+			var curId string
+			for id, v := range devInst.Instances {
+				if v <= curValue {
+					curValue = v
+					curId = id
 				}
 			}
+			offer.DeviceIDs = append(offer.DeviceIDs, curId)
 		}
+		//for id, v := range devInst.Instances {
+		//
+		//	if assigned < ask.Count {
+		//		assigned++
+		//		offer.DeviceIDs = append(offer.DeviceIDs, id)
+		//		if assigned == ask.Count {
+		//			break
+		//		}
+		//	}
+		//}
 	}
 
 	// Failed to find a match
