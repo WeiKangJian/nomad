@@ -113,7 +113,7 @@ func (d *deviceAllocator) AssignDevice(ask *structs.RequestedDevice) (out *struc
 
 		assigned := uint64(0)
 		for ; assigned < ask.Count; assigned++ {
-			curValue := int(^uint(0) >> 1)
+			curValue := math.MaxInt
 			var curId string
 			for id, v := range devInst.Instances {
 				if v <= curValue {
