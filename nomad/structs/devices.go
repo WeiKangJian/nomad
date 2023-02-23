@@ -124,7 +124,8 @@ func (d *DeviceAccounter) AddReserved(res *AllocatedDeviceResource) (collision b
 			collision = true
 		}
 
-		devInst.Instances[id]++
+		// 当前Nomad不支持GPU上任务的混布，暂时去掉这一行,让GPU卡能被多个任务看到
+		//devInst.Instances[id]++
 	}
 
 	return
