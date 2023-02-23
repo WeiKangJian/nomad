@@ -47,17 +47,18 @@ func (d *deviceAllocator) AssignDevice(ask *structs.RequestedDevice) (out *struc
 	// constraints
 	for id, devInst := range d.Devices {
 		// Check if we have enough unused instances to use this
-		assignable := uint64(0)
-		for _, v := range devInst.Instances {
-			if v == 0 {
-				assignable++
-			}
-		}
+		//assignable := uint64(0)
+		//for _, v := range devInst.Instances {
+		//	if v == 0 {
+		//		assignable++
+		//	}
+		//}
 
 		// This device doesn't have enough instances
-		if assignable < ask.Count {
-			continue
-		}
+		// 当前Nomad不支持GPU上任务的混布，暂时去掉这一行
+		//if assignable < ask.Count {
+		//	continue
+		//}
 
 		// Check if the device works
 		if !nodeDeviceMatches(d.ctx, devInst.Device, ask) {

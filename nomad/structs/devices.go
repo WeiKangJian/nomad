@@ -88,7 +88,7 @@ func (d *DeviceAccounter) AddAllocs(allocs []*Allocation) (collision bool) {
 					if devInst, ok := d.Devices[*devID]; ok {
 						if i, ok := devInst.Instances[instanceID]; ok {
 							// Mark that the device is in use
-							devInst.Instances[instanceID]++
+							//devInst.Instances[instanceID]++
 
 							if i != 0 {
 								collision = true
