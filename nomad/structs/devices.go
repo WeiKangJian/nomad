@@ -91,7 +91,8 @@ func (d *DeviceAccounter) AddAllocs(allocs []*Allocation) (collision bool) {
 							devInst.Instances[instanceID]++
 
 							if i != 0 {
-								collision = true
+								// 这里会做一个检查，需要去掉，方便gpu混部
+								collision = false
 							}
 						}
 					}
