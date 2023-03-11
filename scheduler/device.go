@@ -46,6 +46,7 @@ func (d *deviceAllocator) AssignDevice(ask *structs.RequestedDevice) (out *struc
 	// Determine the devices that are feasible based on availability and
 	// constraints
 	for id, devInst := range d.Devices {
+
 		// Check if we have enough unused instances to use this
 		//assignable := uint64(0)
 		//for _, v := range devInst.Instances {
@@ -133,6 +134,76 @@ func (d *deviceAllocator) AssignDevice(ask *structs.RequestedDevice) (out *struc
 		//		}
 		//	}
 		//}
+	}
+	// Failed to find a match
+	if offer == nil {
+		return nil, 0.0, fmt.Errorf("no devices match request")
+	}
+
+	return offer, matchedWeights, nil
+}
+
+func (d *deviceAllocator) AssignGpu(ask *structs.RequestedDevice, allocs []*structs.Allocation) (
+	out *structs.AllocatedDeviceResource, score float64, err error) {
+
+	if len(d.Devices) == 0 {
+		return nil, 0.0, fmt.Errorf("no devices available")
+	}
+	if ask.Count == 0 {
+		return nil, 0.0, fmt.Errorf("invalid request of zero devices")
+	}
+
+	var offer *structs.AllocatedDeviceResource
+	var matchedWeights float64
+	var nodeGpuResource *structs.DeviceAccounterInstance
+
+	for _, gpuResource := range d.Devices {
+		if gpuResource.Device.ID().Matches(ask.ID()) {
+			nodeGpuResource = gpuResource
+			break
+		}
+	}
+
+	if nodeGpuResource == nil {
+		return nil, 0.0, fmt.Errorf("no gpu devices match request")
+	}
+
+	// Determine the devices that are feasible based on availability and
+	// constraints
+	for id, devInst := range d.Devices {
+		if devInst.Device != nil && devInst.Device.ID().Matches(ask.ID()) {
+			curGpuUsageMap := d.GetCurGpuUsage(ask.ID(), allocs, nodeGpuResource)
+			if len(curGpuUsageMap) == 0 {
+				continue
+			}
+			var resID string
+			var minUsage int64 = math.MaxInt64
+			// 选instance里当前使用少的那一个，不在这里进行检查，检查逻辑在rank.go里
+			for id, usage := range curGpuUsageMap {
+				if usage < minUsage {
+					resID = id
+					minUsage = usage
+				}
+			}
+
+			if len(resID) == 0 {
+				return nil, 0.0, fmt.Errorf("get usage of gpu error")
+			}
+
+			// 选中就发offer
+			offer = &structs.AllocatedDeviceResource{
+				Vendor:    id.Vendor,
+				Type:      id.Type,
+				Name:      id.Name,
+				DeviceIDs: make([]string, 0, ask.Count),
+			}
+			assigned := uint64(0)
+			// 暂时不支持job里的count>1,如果>1那么都发同一个deviceID
+			for ; assigned < ask.Count; assigned++ {
+				offer.DeviceIDs = append(offer.DeviceIDs, resID)
+			}
+			break
+		}
 	}
 
 	// Failed to find a match

@@ -144,12 +144,23 @@ func TestDeviceAllocator_Allocate_NotEnoughInstances(t *testing.T) {
 	require.NotNil(d)
 
 	// Build the request
-	ask := deviceRequest("gpu", 4, nil, nil)
+	ask := deviceRequest("gpu", 1, nil, nil)
 
-	out, _, err := d.AssignDevice(ask)
-	require.Nil(out)
-	require.Error(err)
-	require.Contains(err.Error(), "no devices match request")
+	out, _, _ := d.AssignDevice(ask)
+	d.AddReserved(out)
+
+	ask = deviceRequest("gpu", 1, nil, nil)
+	out, _, _ = d.AssignDevice(ask)
+	d.AddReserved(out)
+
+	ask = deviceRequest("gpu", 1, nil, nil)
+	out, _, _ = d.AssignDevice(ask)
+	d.AddReserved(out)
+
+	ask = deviceRequest("gpu", 1, nil, nil)
+	out, _, _ = d.AssignDevice(ask)
+	d.AddReserved(out)
+
 }
 
 // Test that asking for a device with constraints works

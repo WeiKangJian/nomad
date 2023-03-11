@@ -254,6 +254,8 @@ OUTER:
 			},
 		}
 
+		taskResourceMap := make(map[string]*structs.Resources)
+
 		var allocsToPreempt []*structs.Allocation
 
 		// Initialize preemptor with node
@@ -408,9 +410,17 @@ OUTER:
 				taskResources.Networks = []*structs.NetworkResource{offer}
 			}
 
+			var requsetDevice []*structs.RequestedDevice
 			// Check if we need to assign devices
 			for _, req := range task.Resources.Devices {
-				offer, sumAffinities, err := devAllocator.AssignDevice(req)
+				var offer *structs.AllocatedDeviceResource
+				var sumAffinities float64
+
+				if req.ID() != nil && req.ID().Type == "gpu" {
+					offer, sumAffinities, err = devAllocator.AssignGpu(req, proposed)
+				} else {
+					offer, sumAffinities, err = devAllocator.AssignDevice(req)
+				}
 				if offer == nil {
 					// If eviction is not enabled, mark this node as exhausted and continue
 					if !iter.evict {
@@ -447,6 +457,7 @@ OUTER:
 				// Store the resource
 				devAllocator.AddReserved(offer)
 				taskResources.Devices = append(taskResources.Devices, offer)
+				requsetDevice = append(requsetDevice, req)
 
 				// Add the scores
 				if len(req.Affinities) != 0 {
@@ -456,6 +467,8 @@ OUTER:
 					sumMatchingAffinities += sumAffinities
 				}
 			}
+
+			taskResourceMap[task.Name] = &structs.Resources{Devices: requsetDevice}
 
 			// Check if we need to allocate any reserved cores
 			if task.Resources.Cores > 0 {
@@ -501,7 +514,7 @@ OUTER:
 		current := proposed
 
 		// Add the resources we are trying to fit
-		proposed = append(proposed, &structs.Allocation{AllocatedResources: total})
+		proposed = append(proposed, &structs.Allocation{AllocatedResources: total, TaskResources: taskResourceMap})
 
 		// Check if these allocations fit, if they do not, simply skip this node
 		fit, dim, util, _ := structs.AllocsFit(option.Node, proposed, netIdx, false)

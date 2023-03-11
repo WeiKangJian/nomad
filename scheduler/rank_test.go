@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	psstructs "github.com/hashicorp/nomad/plugins/shared/structs"
 	"sort"
 	"testing"
 
@@ -1734,12 +1735,11 @@ func TestBinPackIterator_Devices(t *testing.T) {
 								{
 									Name:  "nvidia/gpu",
 									Count: 1,
-									Affinities: []*structs.Affinity{
+									Constraints: []*structs.Constraint{
 										{
-											LTarget: "${device.attr.graphics_clock}",
+											LTarget: "${device.attr.memory}",
 											Operand: ">",
-											RTarget: "1.4 GHz",
-											Weight:  90,
+											RTarget: "1 GiB",
 										},
 									},
 								},
@@ -1759,7 +1759,6 @@ func TestBinPackIterator_Devices(t *testing.T) {
 					},
 				},
 			},
-			DeviceScore: 1.0,
 		},
 		{
 			Name: "single request over count, no match",
@@ -1937,6 +1936,222 @@ func TestBinPackIterator_Devices(t *testing.T) {
 			if c.DeviceScore != 0.0 {
 				require.Len(out.Scores, 2)
 				require.Equal(c.DeviceScore, out.Scores[1])
+			}
+		})
+	}
+}
+
+func TestBinPackIterator_Devices_gpu(t *testing.T) {
+	nvidiaNode1 := mock.NvidiaNode()
+	nvidiaNode2 := mock.NvidiaNode()
+	nvidiaNode2.NodeResources.Devices[0].Attributes["memory"] = psstructs.NewIntAttribute(38, psstructs.UnitGiB)
+	devs := nvidiaNode2.NodeResources.Devices[0].Instances
+	nvidiaDevices := []string{devs[0].ID, devs[1].ID}
+
+	nvidiaDev0 := mock.Alloc()
+	nvidiaDev0.AllocatedResources.Tasks["web"].Devices = []*structs.AllocatedDeviceResource{
+		{
+			Type:      "gpu",
+			Vendor:    "nvidia",
+			Name:      "1080ti",
+			DeviceIDs: []string{nvidiaDevices[0], nvidiaDevices[1]},
+		},
+	}
+	nvidiaDev0.TaskResources["web"].Devices = []*structs.RequestedDevice{
+		{
+			Name:  "nvidia/gpu",
+			Count: 1,
+			Constraints: []*structs.Constraint{
+				{
+					LTarget: "${device.attr.memory}",
+					Operand: ">=",
+					RTarget: "13 GiB",
+				},
+			},
+		},
+	}
+
+	type devPlacementTuple struct {
+		Count      int
+		ExcludeIDs []string
+	}
+
+	cases := []struct {
+		Name               string
+		Node               *structs.Node
+		PlannedAllocs      []*structs.Allocation
+		ExistingAllocs     []*structs.Allocation
+		TaskGroup          *structs.TaskGroup
+		NoPlace            bool
+		ExpectedPlacements map[string]map[structs.DeviceIdTuple]devPlacementTuple
+		DeviceScore        float64
+	}{
+		{
+			Name: "single request, with constrain",
+			Node: nvidiaNode1,
+			TaskGroup: &structs.TaskGroup{
+				EphemeralDisk: &structs.EphemeralDisk{},
+				Count:         3,
+				Tasks: []*structs.Task{
+					{
+						Name: "web3",
+						Resources: &structs.Resources{
+							CPU:      1024,
+							MemoryMB: 1024,
+							Devices: []*structs.RequestedDevice{
+								{
+									Name:  "nvidia/gpu",
+									Count: 1,
+									Constraints: []*structs.Constraint{
+										{
+											LTarget: "${device.attr.memory}",
+											Operand: ">=",
+											RTarget: "25 GiB",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			ExistingAllocs: []*structs.Allocation{nvidiaDev0},
+			ExpectedPlacements: map[string]map[structs.DeviceIdTuple]devPlacementTuple{
+				"web3": {
+					{
+						Vendor: "nvidia",
+						Type:   "gpu",
+						Name:   "1080ti",
+					}: {
+						Count: 1,
+					},
+				},
+			},
+		},
+		{
+			Name: "single request with previous uses",
+			Node: nvidiaNode1,
+			TaskGroup: &structs.TaskGroup{
+				EphemeralDisk: &structs.EphemeralDisk{},
+				Tasks: []*structs.Task{
+					{
+						Name: "web",
+						Resources: &structs.Resources{
+							CPU:      1024,
+							MemoryMB: 1024,
+							Devices: []*structs.RequestedDevice{
+								{
+									Name:  "nvidia/gpu",
+									Count: 1,
+								},
+							},
+						},
+					},
+				},
+			},
+			ExpectedPlacements: map[string]map[structs.DeviceIdTuple]devPlacementTuple{
+				"web": {
+					{
+						Vendor: "nvidia",
+						Type:   "gpu",
+						Name:   "1080ti",
+					}: {
+						Count:      1,
+						ExcludeIDs: []string{nvidiaDevices[0]},
+					},
+				},
+			},
+			ExistingAllocs: []*structs.Allocation{nvidiaDev0},
+		},
+		{
+			Name: "single request with planned uses",
+			Node: nvidiaNode1,
+			TaskGroup: &structs.TaskGroup{
+				EphemeralDisk: &structs.EphemeralDisk{},
+				Tasks: []*structs.Task{
+					{
+						Name: "web",
+						Resources: &structs.Resources{
+							CPU:      1024,
+							MemoryMB: 1024,
+							Devices: []*structs.RequestedDevice{
+								{
+									Name:  "nvidia/gpu",
+									Count: 1,
+								},
+							},
+						},
+					},
+				},
+			},
+			ExpectedPlacements: map[string]map[structs.DeviceIdTuple]devPlacementTuple{
+				"web": {
+					{
+						Vendor: "nvidia",
+						Type:   "gpu",
+						Name:   "1080ti",
+					}: {
+						Count:      1,
+						ExcludeIDs: []string{nvidiaDevices[0]},
+					},
+				},
+			},
+			PlannedAllocs: []*structs.Allocation{nvidiaDev0},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.Name, func(t *testing.T) {
+			require := require.New(t)
+
+			// Setup the context
+			state, ctx := testContext(t)
+
+			// Add the planned allocs
+			if len(c.PlannedAllocs) != 0 {
+				for _, alloc := range c.PlannedAllocs {
+					alloc.NodeID = c.Node.ID
+				}
+				plan := ctx.Plan()
+				plan.NodeAllocation[c.Node.ID] = c.PlannedAllocs
+			}
+
+			// Add the existing allocs
+			if len(c.ExistingAllocs) != 0 {
+				for _, alloc := range c.ExistingAllocs {
+					alloc.NodeID = nvidiaNode2.ID
+				}
+				require.NoError(state.UpsertAllocs(structs.MsgTypeTestSetup, 1000, c.ExistingAllocs))
+			}
+
+			static := NewStaticRankIterator(ctx, []*RankedNode{{Node: c.Node}, {Node: nvidiaNode2}})
+			binp := NewBinPackIterator(ctx, static, false, 0, testSchedulerConfig)
+			binp.SetTaskGroup(c.TaskGroup)
+
+			out := binp.Next()
+			if out == nil && !c.NoPlace {
+				t.Fatalf("expected placement")
+			}
+
+			// Check we got the placements we are expecting
+			for tname, devices := range c.ExpectedPlacements {
+				tr, ok := out.TaskResources[tname]
+				require.True(ok)
+
+				want := len(devices)
+				got := 0
+				for _, placed := range tr.Devices {
+					got++
+
+					expected, ok := devices[*placed.ID()]
+					require.True(ok)
+					require.Equal(expected.Count, len(placed.DeviceIDs))
+					for _, id := range expected.ExcludeIDs {
+						require.NotContains(placed.DeviceIDs, id)
+					}
+				}
+
+				require.Equal(want, got)
 			}
 		})
 	}

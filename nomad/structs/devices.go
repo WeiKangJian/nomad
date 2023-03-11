@@ -1,5 +1,10 @@
 package structs
 
+import (
+	"strconv"
+	"strings"
+)
+
 // DeviceAccounter is used to account for device usage on a node. It can detect
 // when a node is oversubscribed and can be used for deciding what devices are
 // free
@@ -102,6 +107,108 @@ func (d *DeviceAccounter) AddAllocs(allocs []*Allocation) (collision bool) {
 	}
 
 	return
+}
+
+// CheckGpuResource check if node gpu resource and allocations resource
+func (d *DeviceAccounter) CheckGpuResource(deviceID *DeviceIdTuple, allocs []*Allocation, nodeGpuResource *DeviceAccounterInstance) bool {
+	if nodeGpuResource == nil || nodeGpuResource.Device == nil || nodeGpuResource.Device.Attributes == nil {
+		return false
+	}
+	gpuMemoryMap := d.GetCurGpuUsage(deviceID, allocs, nodeGpuResource)
+	nodeInstanceGpuMemoryAttribute, ok := nodeGpuResource.Device.Attributes["memory"]
+	if !ok || nodeInstanceGpuMemoryAttribute == nil {
+		return false
+	}
+	var nodeInstanceGpuMemory int64
+	if value, ok := nodeInstanceGpuMemoryAttribute.GetInt(); ok {
+		if nodeInstanceGpuMemoryAttribute.Unit == "MiB" {
+			nodeInstanceGpuMemory = value
+		} else if nodeInstanceGpuMemoryAttribute.Unit == "GiB" {
+			nodeInstanceGpuMemory = value * 1000
+		}
+	} else if value, ok := nodeInstanceGpuMemoryAttribute.GetFloat(); ok {
+		if nodeInstanceGpuMemoryAttribute.Unit == "MiB" {
+			nodeInstanceGpuMemory = int64(value)
+		} else if nodeInstanceGpuMemoryAttribute.Unit == "GiB" {
+			nodeInstanceGpuMemory = int64(value * 1000)
+		}
+	} else {
+		return false
+	}
+
+	for gpuInstanceID := range nodeGpuResource.Instances {
+		if gpuMemoryMap[gpuInstanceID] > nodeInstanceGpuMemory {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (d *DeviceAccounter) GetCurGpuUsage(deviceID *DeviceIdTuple, allocs []*Allocation, nodeGpuResource *DeviceAccounterInstance) map[string]int64 {
+
+	gpuMemoryMap := make(map[string]int64)
+	if nodeGpuResource == nil || nodeGpuResource.Instances == nil {
+		return gpuMemoryMap
+	}
+	for gpuInstanceID := range nodeGpuResource.Instances {
+		gpuMemoryMap[gpuInstanceID] = 0
+	}
+	for _, a := range allocs {
+		if a.AllocatedResources == nil {
+			continue
+		}
+
+		// Go through each task  resource
+		for taskName, allocationTaskResource := range a.AllocatedResources.Tasks {
+			if allocationTaskResource == nil || allocationTaskResource.Devices == nil {
+				continue
+			}
+			// Go through each assigned device group
+			for _, device := range allocationTaskResource.Devices {
+				if device.ID().Matches(deviceID) {
+					// 拿到了被分配的显卡的instanceID
+					for _, instanceID := range device.DeviceIDs {
+						if curMemory, ok := gpuMemoryMap[instanceID]; ok {
+							//拿到这个task要求的显存
+							if a.TaskResources == nil {
+								continue
+							}
+							resource, ok := a.TaskResources[taskName]
+							if !ok || resource.Devices == nil || len(resource.Devices) == 0 {
+								continue
+							}
+							for _, resourceDevice := range resource.Devices {
+								if resourceDevice.Constraints == nil || len(resourceDevice.Constraints) == 0 {
+									continue
+								}
+								for _, constrain := range resourceDevice.Constraints {
+									if constrain != nil && constrain.LTarget == "${device.attr.memory}" {
+										if constrain.Operand != ">" && constrain.Operand != ">=" {
+											continue
+										}
+										requestResource := strings.Fields(strings.TrimSpace(constrain.RTarget))
+										if len(requestResource) == 2 {
+											if resource, err := strconv.ParseFloat(requestResource[0], 64); err == nil {
+												if requestResource[1] == "MiB" {
+													gpuMemoryMap[instanceID] = curMemory + int64(resource)
+												} else if requestResource[1] == "GiB" {
+													gpuMemoryMap[instanceID] = curMemory + int64(resource*1000)
+												}
+											}
+										}
+										break
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return gpuMemoryMap
 }
 
 // AddReserved marks the device instances in the passed device reservation as

@@ -231,6 +231,16 @@ func AllocsFit(node *Node, allocs []*Allocation, netIdx *NetworkIndex, checkDevi
 		}
 	}
 
+	// Check gpu resource
+	gpuAccouter := NewDeviceAccounter(node)
+	for key, nodeGpuResource := range gpuAccouter.Devices {
+		if key.Type == "gpu" {
+			if !gpuAccouter.CheckGpuResource(&key, allocs, nodeGpuResource) {
+				return false, "gpu resource exceeded", used, nil
+			}
+		}
+	}
+
 	// Allocations fit!
 	return true, "", used, nil
 }
