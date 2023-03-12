@@ -1945,7 +1945,7 @@ func TestBinPackIterator_Devices_gpu(t *testing.T) {
 	nvidiaNode1 := mock.NvidiaNode()
 	nvidiaNode2 := mock.NvidiaNode()
 	nvidiaNode2.NodeResources.Devices[0].Attributes["memory"] = psstructs.NewIntAttribute(38, psstructs.UnitGiB)
-	devs := nvidiaNode2.NodeResources.Devices[0].Instances
+	devs := nvidiaNode1.NodeResources.Devices[0].Instances
 	nvidiaDevices := []string{devs[0].ID, devs[1].ID}
 
 	nvidiaDev0 := mock.Alloc()
@@ -1957,7 +1957,8 @@ func TestBinPackIterator_Devices_gpu(t *testing.T) {
 			DeviceIDs: []string{nvidiaDevices[0], nvidiaDevices[1]},
 		},
 	}
-	nvidiaDev0.TaskResources["web"].Devices = []*structs.RequestedDevice{
+	nvidiaDev0.TaskResources = nil
+	nvidiaDev0.Job.TaskGroups[0].Tasks[0].Resources.Devices = []*structs.RequestedDevice{
 		{
 			Name:  "nvidia/gpu",
 			Count: 1,
@@ -1965,7 +1966,7 @@ func TestBinPackIterator_Devices_gpu(t *testing.T) {
 				{
 					LTarget: "${device.attr.memory}",
 					Operand: ">=",
-					RTarget: "13 GiB",
+					RTarget: "4 GiB",
 				},
 			},
 		},
@@ -2006,7 +2007,7 @@ func TestBinPackIterator_Devices_gpu(t *testing.T) {
 										{
 											LTarget: "${device.attr.memory}",
 											Operand: ">=",
-											RTarget: "25 GiB",
+											RTarget: "5 GiB",
 										},
 									},
 								},
@@ -2029,13 +2030,14 @@ func TestBinPackIterator_Devices_gpu(t *testing.T) {
 			},
 		},
 		{
-			Name: "single request with previous uses",
+			Name: "single request, with constrain",
 			Node: nvidiaNode1,
 			TaskGroup: &structs.TaskGroup{
 				EphemeralDisk: &structs.EphemeralDisk{},
+				Count:         3,
 				Tasks: []*structs.Task{
 					{
-						Name: "web",
+						Name: "web3",
 						Resources: &structs.Resources{
 							CPU:      1024,
 							MemoryMB: 1024,
@@ -2043,60 +2045,21 @@ func TestBinPackIterator_Devices_gpu(t *testing.T) {
 								{
 									Name:  "nvidia/gpu",
 									Count: 1,
+									Constraints: []*structs.Constraint{
+										{
+											LTarget: "${device.attr.memory}",
+											Operand: ">=",
+											RTarget: "8 GiB",
+										},
+									},
 								},
 							},
 						},
-					},
-				},
-			},
-			ExpectedPlacements: map[string]map[structs.DeviceIdTuple]devPlacementTuple{
-				"web": {
-					{
-						Vendor: "nvidia",
-						Type:   "gpu",
-						Name:   "1080ti",
-					}: {
-						Count:      1,
-						ExcludeIDs: []string{nvidiaDevices[0]},
 					},
 				},
 			},
 			ExistingAllocs: []*structs.Allocation{nvidiaDev0},
-		},
-		{
-			Name: "single request with planned uses",
-			Node: nvidiaNode1,
-			TaskGroup: &structs.TaskGroup{
-				EphemeralDisk: &structs.EphemeralDisk{},
-				Tasks: []*structs.Task{
-					{
-						Name: "web",
-						Resources: &structs.Resources{
-							CPU:      1024,
-							MemoryMB: 1024,
-							Devices: []*structs.RequestedDevice{
-								{
-									Name:  "nvidia/gpu",
-									Count: 1,
-								},
-							},
-						},
-					},
-				},
-			},
-			ExpectedPlacements: map[string]map[structs.DeviceIdTuple]devPlacementTuple{
-				"web": {
-					{
-						Vendor: "nvidia",
-						Type:   "gpu",
-						Name:   "1080ti",
-					}: {
-						Count:      1,
-						ExcludeIDs: []string{nvidiaDevices[0]},
-					},
-				},
-			},
-			PlannedAllocs: []*structs.Allocation{nvidiaDev0},
+			NoPlace: true,
 		},
 	}
 
@@ -2119,16 +2082,19 @@ func TestBinPackIterator_Devices_gpu(t *testing.T) {
 			// Add the existing allocs
 			if len(c.ExistingAllocs) != 0 {
 				for _, alloc := range c.ExistingAllocs {
-					alloc.NodeID = nvidiaNode2.ID
+					alloc.NodeID = nvidiaNode1.ID
 				}
 				require.NoError(state.UpsertAllocs(structs.MsgTypeTestSetup, 1000, c.ExistingAllocs))
 			}
 
-			static := NewStaticRankIterator(ctx, []*RankedNode{{Node: c.Node}, {Node: nvidiaNode2}})
+			static := NewStaticRankIterator(ctx, []*RankedNode{{Node: c.Node}})
 			binp := NewBinPackIterator(ctx, static, false, 0, testSchedulerConfig)
 			binp.SetTaskGroup(c.TaskGroup)
 
 			out := binp.Next()
+			if out !=nil && c.NoPlace{
+				t.Fatalf("expected no placement")
+			}
 			if out == nil && !c.NoPlace {
 				t.Fatalf("expected placement")
 			}

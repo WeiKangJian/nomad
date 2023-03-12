@@ -158,7 +158,6 @@ func (d *DeviceAccounter) GetCurGpuUsage(deviceID *DeviceIdTuple, allocs []*Allo
 		if a.AllocatedResources == nil {
 			continue
 		}
-
 		// Go through each task  resource
 		for taskName, allocationTaskResource := range a.AllocatedResources.Tasks {
 			if allocationTaskResource == nil || allocationTaskResource.Devices == nil {
@@ -171,11 +170,8 @@ func (d *DeviceAccounter) GetCurGpuUsage(deviceID *DeviceIdTuple, allocs []*Allo
 					for _, instanceID := range device.DeviceIDs {
 						if curMemory, ok := gpuMemoryMap[instanceID]; ok {
 							//拿到这个task要求的显存
-							if a.TaskResources == nil {
-								continue
-							}
-							resource, ok := a.TaskResources[taskName]
-							if !ok || resource.Devices == nil || len(resource.Devices) == 0 {
+							resource := d.GetDeviceRequireResourceByTaskName(a.TaskGroup, taskName, a)
+							if resource == nil || resource.Devices == nil || len(resource.Devices) == 0 {
 								continue
 							}
 							for _, resourceDevice := range resource.Devices {
@@ -209,6 +205,35 @@ func (d *DeviceAccounter) GetCurGpuUsage(deviceID *DeviceIdTuple, allocs []*Allo
 	}
 
 	return gpuMemoryMap
+}
+
+func (d *DeviceAccounter) GetDeviceRequireResourceByTaskName(targetTaskGroupName string, targetTaskName string, alloc *Allocation) *Resources {
+	if alloc == nil || len(targetTaskName) == 0 {
+		return nil
+	}
+	// first check alloc's taskResource
+	var resources *Resources
+	if curResource, ok := alloc.TaskResources[targetTaskName]; ok {
+		if curResource != nil && curResource.Devices != nil {
+			resources = curResource
+			return resources
+		}
+	}
+	// then check alloc's Job resource define
+	allocJob := alloc.Job
+	if allocJob == nil || len(targetTaskGroupName) == 0 || allocJob.TaskGroups == nil {
+		return nil
+	}
+	for _, taskGroup := range allocJob.TaskGroups {
+		if taskGroup.Name == targetTaskGroupName {
+			for _, task := range taskGroup.Tasks {
+				if task.Name == targetTaskName {
+					resources = task.Resources
+				}
+			}
+		}
+	}
+	return resources
 }
 
 // AddReserved marks the device instances in the passed device reservation as
