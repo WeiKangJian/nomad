@@ -201,6 +201,9 @@ func (e *EvalContext) ProposedAllocs(nodeID string) ([]*structs.Allocation, erro
 		proposedIDs[alloc.ID] = alloc
 	}
 	for _, alloc := range e.plan.NodeAllocation[nodeID] {
+		if alloc.Job == nil {
+			alloc.Job = e.plan.Job
+		}
 		proposedIDs[alloc.ID] = alloc
 	}
 
